@@ -1,29 +1,18 @@
 clear;
 pkg load odepkg;
 
-T = 1:100;
-mu1 =  horzcat((repmat([25], 1, length(T)/2)), (repmat([45], 1, length(T)/2)));
-mu2 =  horzcat((repmat([25], 1, length(T)/2)), (repmat([15], 1, length(T)/2)));
-
-mu = vertcat(mu1, mu2);
+T = 1:1000;
 
 function qdot = q(t, x, xd)
 	lamb = lambda(t);
-	mu = service_time(t);
-	qmu_1 = (1 + xd(1, 1)) * mu(1);
-	qmu_2 = (1 + xd(2, 2)) * mu(2);
-	C = qmu_1/qmu_2;
+	mu = service_rate(t);
+	measured_q1 = max(xd(1, 1), 0);
+	measured_q2 = max(xd(2, 2), 0);
 
-	% den = qmu_1 + qmu_2;
-	% f1 = lamb * qmu_1 / den;
-	% f2 = lamb * qmu_2 / den;
+	qmu_1 = (1 + measured_q1)/mu(1);
+	qmu_2 = (1 + measured_q2)/mu(2);
+	C = qmu_2/qmu_1;
 
-
-	% C = (mu(1)/mu(2)) ^ (1/3);
-	% f1 = lamb/C;
-	% f2 = lamb - f1;
-	% f1 = (C * lamb + C * xd(2, 2) - xd(1, 1))/(C + 1);
-	% f2 = lamb - f1;
 	f1 = C * lamb / (1 + C);
 	f2 = lamb - f1;
 
@@ -37,43 +26,47 @@ function qdot = q(t, x, xd)
 		mu_2 = 0;
 	endif
 
-	% printf("%d %d %d %d %d %d %d\n", x(1), x(2), t, f1, f2, xd(2, 2), xd(1, 1));
+	printf("%d %d %d %d %d %d %d %d\n", x(1), x(2), t, f1, f2, xd(2, 2), xd(1, 1), lamb);
 	qdot(1) = f1 - mu_1;
 	qdot(2) = f2 - mu_2;
 endfunction
 
 function lambda = lambda(t)
-	lambda(1) = 50;
+	lamb = 50;
+
+	if (t > 30)
+		lamb = 50;
+	elseif (t > 20)
+		lamb = 20;
+	endif
+
+	lambda(1) = lamb;
 endfunction
 
-function service_time = service_time(t)
-	service_time(1) = 25;
-	service_time(2) = 25;
+function service_rate = service_rate(t)
+
+	st_1 = 35;
+	st_2 = 15;
+
+	if (t > 30)
+		st_1 = 15;
+		st_2 = 35;
+	elseif (t > 20)
+		st_1 = 35;
+		st_2 = 25;
+	endif
+
+	service_rate(1) = st_1;
+	service_rate(2) = st_2;
+
 endfunction
 
-initq = 1;
+initq = 100;
 x0_1 = initq;
 x0_2 = initq;
 
-res_start_x = [];
-res_start_y = [];
-
 hist_mat = repmat(initq, 2, 3);
 
-% for i = 1:1:(length(T)-1)
-res = ode23d(@q, T, [x0_1; x0_2], [0.01, 0.01], hist_mat);
-% 	x0_1 = res.y(length(res.y), 1);
-% 	x0_2 = res.y(length(res.y), 2);
-% 	if (i == 1)
-% 		res_start_x = res.x;
-% 		res_start_y = res.y;
-% 	else
-% 		res_start_x = vertcat(res_start_x, res.x);
-% 		res_start_y = vertcat(res_start_y, res.y);
-% 	endif
-% 	hist_mat = (res.y((length(res.y) - 1):length(res.y),:)).';
-% 	% hist_mat = res
-% endfor
+res = ode23d(@q, T, [x0_1; x0_2], [1, 1], hist_mat);
 
 plot(res.x, res.y)
-% plot(res_start_x, res_start_y)
