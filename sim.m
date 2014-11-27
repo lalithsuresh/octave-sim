@@ -1,9 +1,12 @@
 clear;
 pkg load odepkg;
 
-T = 1:600;
+Tstart = 1;
+Tend = 1000;
+NumT = 2000;
+T = linspace(1, 1000, 2000);
 
-function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent)
+function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
@@ -13,7 +16,9 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent)
 			measured_q = max(xd(server, server), 0);
 			% 1/rate == mu
 			% need a way to import time lag
-			qmu_inverse(server) = ServiceRate(t - lags(server), num_servers)(server)/((1 + measured_q) ^ qsz_exponent);
+			os_n = os * num_clients;
+			service_rate = ServiceRate(t - lags(server), num_servers)(server);
+			qmu_inverse(server) = service_rate/((1 + os_n + measured_q) ^ qsz_exponent);
 		endfor
 		TotalWeight = sum(qmu_inverse);
 
@@ -51,6 +56,7 @@ function ServiceRate = ServiceRate(t, num_servers)
 
 	if(t > 400)
 		ServiceRate = [90;50;10];
+		% ServiceRate = [30;70;50];
 	elseif(t > 100)
 		ServiceRate = [30;70;50];
 	endif
@@ -62,20 +68,18 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initq = 500;
+initq = 0;
 num_clients = 5;
 num_servers = 3;
 qsz_exponent = 3;
-
-% xxx: add estimation error to qsz
+os = 0;
 
 init = repmat([initq], num_servers, 1);
-% lags = repmat([1], 1, num_servers);
-lags = [0.5, 0.5, 0.5];
+lags = repmat([0.5], 1, num_servers);
 
 hist_mat = repmat(initq, num_servers, num_servers);
 
-res = ode23d(@q, T, init, lags, hist_mat, num_clients, num_servers, lags, qsz_exponent);
+res = ode23d(@q, T, init, lags, hist_mat, num_clients, num_servers, lags, qsz_exponent, os);
 
 % XXX: Add legend
 plot(res.x, res.y, 'LineWidth', 2);
