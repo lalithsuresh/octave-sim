@@ -2,9 +2,9 @@ clear;
 pkg load odepkg;
 
 Tstart = 1;
-Tend = 1000;
-NumT = 2000;
-T = linspace(1, 1000, 2000);
+Tend = 600;
+NumT = Tend * 2;
+T = linspace(Tstart, Tend, NumT);
 
 function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 
@@ -68,10 +68,10 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initq = 0;
+initq = 500;
 num_clients = 5;
 num_servers = 3;
-qsz_exponent = 3;
+qsz_exponent = 1;
 os = 0;
 
 init = repmat([initq], num_servers, 1);
