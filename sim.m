@@ -130,7 +130,7 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initServerQ = 0;
+initServerQ = 10;
 initClientQ = 0;
 num_clients = 5;
 num_servers = 3;
@@ -148,7 +148,9 @@ res = ode78d(@q, T, init, lags, hist_mat,
 			 num_clients, num_servers, lags, qsz_exponent, os, sending_rates);
 
 % XXX: Add legend
-% subplot (2, 1, 1);
+subplot (2, 1, 1);
 plot(res.x, res.y(:, 1:num_servers), 'LineWidth', 2);
-% subplot (2, 1, 2);
-% plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
+axis ([Tstart Tend 0 150]);
+subplot (2, 1, 2);
+plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
+axis ([Tstart Tend 0 5]);
