@@ -2,7 +2,7 @@ clear;
 pkg load odepkg;
 
 Tstart = 1;
-Tend = 600;
+Tend = 300;
 NumT = Tend;
 T = linspace(Tstart, Tend, NumT);
 % T = [0,600];
@@ -37,7 +37,9 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 		
 		% When in backpressure mode, fire away at full possible
 		% sending rate.
-		if (x(num_servers + client) > 0)
+		% XXX: this check has potential for numerical errors.
+		% ... fix later.
+		if (x(num_servers + client) > 0.5)
 			total_to_allocate = sum(sending_rate);
 		endif
 
@@ -77,6 +79,9 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 
 		% Update backlog size at client
 		total_drain = sum(flow_matrix(client, :));
+		% if (x(num_servers + client) <= 0)
+		% 	total_drain = 0;
+		% endif
 		qdot(num_servers + client) = arrival_rate(client) - total_drain;
 	endfor
 
@@ -100,7 +105,7 @@ function ArrivalRate = ArrivalRate(t, num_clients)
 	% if(t > 401)
 	% 	ArrivalRate = repmat(lamb, 1, num_clients);
 	% elseif(t > 400)
-	% 	ArrivalRate = repmat(31, 1, num_clients);
+	% 	ArrivalRate = repmat(30, 1, num_clients);
 	% endif
 
 endfunction
@@ -110,13 +115,13 @@ function ServiceRate = ServiceRate(t, num_servers)
 	
 	ServiceRate = repmat(50, 1, num_servers);
 
-	% if(t > 401)
-	% 	ServiceRate = [56;50;50];
-	% 	% ServiceRate = [30;70;50];
-	% elseif(t > 100)
-	% 	% ServiceRate = [30;70;50];
-	% 	ServiceRate = [50;50;50];
-	% endif
+	if(t > 401)
+		% ServiceRate = [56;50;50];
+		ServiceRate = [30;70;50];
+	elseif(t > 100)
+		ServiceRate = [30;70;50];
+		% ServiceRate = [50;50;50];
+	endif
 
 	% st = 50;
 	% amplitude = 5;
@@ -125,11 +130,11 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initServerQ = 500;
+initServerQ = 0;
 initClientQ = 0;
 num_clients = 5;
 num_servers = 3;
-qsz_exponent = 1;
+qsz_exponent = 3;
 os = 0;
 
 init = vertcat(repmat([initServerQ], num_servers, 1), 
@@ -137,13 +142,13 @@ init = vertcat(repmat([initServerQ], num_servers, 1),
 lags = repmat([0.5], 1, num_servers);
 hist_mat = vertcat(repmat(initServerQ, num_servers, num_servers),
 				   repmat(initClientQ, num_clients, num_servers));
-sending_rates = repmat([10], 1, num_servers)
+sending_rates = repmat([30], 1, num_servers);
 
-res = ode23d(@q, T, init, lags, hist_mat,
+res = ode78d(@q, T, init, lags, hist_mat,
 			 num_clients, num_servers, lags, qsz_exponent, os, sending_rates);
 
 % XXX: Add legend
-subplot (2, 1, 1);
+% subplot (2, 1, 1);
 plot(res.x, res.y(:, 1:num_servers), 'LineWidth', 2);
-subplot (2, 1, 2);
-plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
+% subplot (2, 1, 2);
+% plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
