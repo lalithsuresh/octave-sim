@@ -3,15 +3,20 @@ pkg load odepkg;
 
 Tstart = 1;
 Tend = 600;
-NumT = Tend * 2;
+NumT = Tend;
 T = linspace(Tstart, Tend, NumT);
+% T = [0,600];
 
 function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 	qdot = zeros(num_servers + num_clients, 1);
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
-	sending_rate = [10; 10; 10]
+	sending_rate = [10; 10; 10];
+	% if(t > 402)
+	% 	sending_rate = [56/num_clients; 10; 10];
+	% endif
 	for client = 1:num_clients
+
 		qmu_inverse = zeros(num_servers, 1);
 		for server = 1:num_servers
 			measured_q = max(xd(server, server), 0);
@@ -24,52 +29,48 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 		TotalWeight = sum(qmu_inverse);
 
 		% xxx: use vector operation
-		% backlogSize = x(num_servers + client);
-		backlogSize = 0;
-		total_to_allocate = 0;
-		if (x(num_servers + client) > 0)
-			% then sum of sending rates
-			if (t > 402)
-				sending_rate(1) = 56/5;
-			endif
-			total_to_allocate = sum(sending_rate);
-		else
-			total_to_allocate = arrival_rate(client);
-		endif
+		backlogRate = 0;
+		total_to_allocate = arrival_rate(client);
 		is_full = zeros(num_servers, 1);
-	
-		for k = 1:num_servers	
+
+		if (x(num_servers + client) > 0)
+			% When in backpressure mode, fire away at full rate
+			total_to_allocate = sum(sending_rate);
+		endif
+
+		for k = 1:num_servers
 			for server = 1:num_servers
-				if(is_full(server) == 0)
+				if (is_full(server) == 0)
 					flow_fraction = qmu_inverse(server)/(TotalWeight);
-					flow_matrix(client, server) = (backlogSize + total_to_allocate) * flow_fraction;
-					% backlogSize + total_to_allocate, flow_fraction
-					if (flow_matrix(client, server) > sending_rate(server))
-						backlogSize = backlogSize + (flow_matrix(client, server) - sending_rate(server));
+					flow_matrix(client, server) = total_to_allocate * flow_fraction;
+
+					if(flow_matrix(client, server) > sending_rate)
+						backlogRate = backlogRate + flow_matrix(client, server) - sending_rate(server);
 						flow_matrix(client, server) = sending_rate(server);
+					endif
+
+					if (flow_matrix(client, server) >= sending_rate)
 						is_full(server) = 1;
 						TotalWeight = TotalWeight - qmu_inverse(server);
-						total_to_allocate = total_to_allocate - sending_rate(server);
 					endif
 				endif
 			endfor
 
-			if (backlogSize == 0)
+			if (backlogRate > 0)
+				total_to_allocate = backlogRate;
+			else
 				break
 			endif
 		endfor
 
-		if (t > 401)
-			flow_matrix
-		endif
 		% Update backlog size at client
 		total_drain = sum(flow_matrix(client, :));
-		% if (x(num_servers + client) <= 0)
-		% 	total_drain = 0
-		% endif
 		qdot(num_servers + client) = arrival_rate(client) - total_drain;
 	endfor
-	flow_matrix
+	% if(t > 400)
+	% 	printf("LOL %d\n", t);
+	% 	flow_matrix
+	% endif
 
 	% use the current rate to find the integral
 	rate = ServiceRate(t, num_servers);
@@ -88,11 +89,11 @@ function ArrivalRate = ArrivalRate(t, num_clients)
 	lamb = 30;
 	ArrivalRate = repmat(lamb, 1, num_clients);
 
-	if(t > 401)
-		ArrivalRate = repmat(lamb, 1, num_clients);
-	elseif(t > 400)
-		ArrivalRate = repmat(31, 1, num_clients);
-	endif
+	% if(t > 401)
+	% 	ArrivalRate = repmat(lamb, 1, num_clients);
+	% elseif(t > 400)
+	% 	ArrivalRate = repmat(31, 1, num_clients);
+	% endif
 
 endfunction
 
@@ -101,13 +102,13 @@ function ServiceRate = ServiceRate(t, num_servers)
 	
 	ServiceRate = repmat(50, 1, num_servers);
 
-	if(t > 401)
-		ServiceRate = [60;50;50];
-		% ServiceRate = [30;70;50];
-	elseif(t > 100)
-		% ServiceRate = [30;70;50];
-		ServiceRate = [50;50;50];
-	endif
+	% if(t > 401)
+	% 	ServiceRate = [56;50;50];
+	% 	% ServiceRate = [30;70;50];
+	% elseif(t > 100)
+	% 	% ServiceRate = [30;70;50];
+	% 	ServiceRate = [50;50;50];
+	% endif
 
 	% st = 50;
 	% amplitude = 5;
