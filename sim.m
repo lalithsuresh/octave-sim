@@ -56,12 +56,12 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 					flow_fraction = qmu_inverse(server)/(TotalWeight);
 					flow_matrix(client, server) = total_to_allocate * flow_fraction;
 
-					if(flow_matrix(client, server) > sending_rate)
+					if(flow_matrix(client, server) > sending_rate(server))
 						backlogRate = backlogRate + flow_matrix(client, server) - sending_rate(server);
 						flow_matrix(client, server) = sending_rate(server);
 					endif
 
-					if (flow_matrix(client, server) >= sending_rate)
+					if (flow_matrix(client, server) >= sending_rate(server))
 						is_full(server) = 1;
 						TotalWeight = TotalWeight - qmu_inverse(server);
 					endif
@@ -130,7 +130,7 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initServerQ = 10;
+initServerQ = 0;
 initClientQ = 0;
 num_clients = 5;
 num_servers = 3;
