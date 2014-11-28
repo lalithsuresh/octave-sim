@@ -7,16 +7,16 @@ NumT = Tend;
 T = linspace(Tstart, Tend, NumT);
 % T = [0,600];
 
-function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
+function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, sending_rate)
 	qdot = zeros(num_servers + num_clients, 1);
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
-	sending_rate = [10; 10; 10];
-	% if(t > 402)
-	% 	sending_rate = [56/num_clients; 10; 10];
-	% endif
 	for client = 1:num_clients
 
+		% 
+		% Flows are divided in proportion to the inverse of their
+		% queue-size x service-time products.
+		% 
 		qmu_inverse = zeros(num_servers, 1);
 		for server = 1:num_servers
 			measured_q = max(xd(server, server), 0);
@@ -28,16 +28,26 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 		endfor
 		TotalWeight = sum(qmu_inverse);
 
-		% xxx: use vector operation
+		% 
+		% Demand allocation begins.
+		% 
 		backlogRate = 0;
 		total_to_allocate = arrival_rate(client);
 		is_full = zeros(num_servers, 1);
-
+		
+		% When in backpressure mode, fire away at full possible
+		% sending rate.
 		if (x(num_servers + client) > 0)
-			% When in backpressure mode, fire away at full rate
 			total_to_allocate = sum(sending_rate);
 		endif
 
+		% The inner loop allocates the current demand (which is either the
+		% arrival rate when not in backpressure, or the full sending rate when
+		% in backpressure) across all servers. At the end of each iteration,
+		% any allocation which exceeds the sending rate for a server is
+		% accumulated as the backlogRate. The outer loop repeats this
+		% iteration either until all sending rates have been saturated or
+		% until the demand has been fully allocated across servers.
 		for k = 1:num_servers
 			for server = 1:num_servers
 				if (is_full(server) == 0)
@@ -56,6 +66,8 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 				endif
 			endfor
 
+			% If there is a residual demand, that is allocated in the next
+			% iteration.
 			if (backlogRate > 0)
 				total_to_allocate = backlogRate;
 			else
@@ -67,10 +79,6 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os)
 		total_drain = sum(flow_matrix(client, :));
 		qdot(num_servers + client) = arrival_rate(client) - total_drain;
 	endfor
-	% if(t > 400)
-	% 	printf("LOL %d\n", t);
-	% 	flow_matrix
-	% endif
 
 	% use the current rate to find the integral
 	rate = ServiceRate(t, num_servers);
@@ -127,11 +135,12 @@ os = 0;
 init = vertcat(repmat([initServerQ], num_servers, 1), 
 			   repmat([initClientQ], num_clients, 1));
 lags = repmat([0.5], 1, num_servers);
-
 hist_mat = vertcat(repmat(initServerQ, num_servers, num_servers),
 				   repmat(initClientQ, num_clients, num_servers));
+sending_rates = repmat([10], 1, num_servers)
 
-res = ode23d(@q, T, init, lags, hist_mat, num_clients, num_servers, lags, qsz_exponent, os);
+res = ode23d(@q, T, init, lags, hist_mat,
+			 num_clients, num_servers, lags, qsz_exponent, os, sending_rates);
 
 % XXX: Add legend
 subplot (2, 1, 1);
