@@ -7,7 +7,22 @@ NumT = Tend;
 % T = linspace(Tstart, Tend, NumT * 5);
 T = [Tstart,Tend];
 
+initServerQ = 10;
+initClientQ = 0;
+num_clients = 10;
+num_servers = 3;
+qsz_exponent = 3;
+os = 5;
+
+global alpha = 0.8;
+global ewma_q = zeros(num_clients, num_servers);
+global ewma_service_rate = zeros(num_clients, num_servers);
+
 function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, sending_rate)
+	global ewma_q;
+	global ewma_service_rate;
+	global alpha;
+	ewma_q, ewma_service_rate
 	qdot = zeros(num_servers + num_clients, 1);
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
@@ -22,13 +37,14 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 		qmu_inverse = zeros(num_servers, 1);
 		for server = 1:num_servers
 			measured_q = max(xd(server, server), 0);
-			measured_q, server, t
+			ewma_q(client, server) = (1 - alpha) * ewma_q(client, server) + alpha * measured_q;
+			% measured_q, server, t
 			% 1/rate == mu
 			% need a way to import time lag
 			os_n = os * num_clients;
-			ServiceRate(t - lags(server), num_servers)
-			service_rate = ServiceRate(t - lags(server), num_servers)(server);
-			qmu_inverse(server) = service_rate/((1 + os_n + measured_q) ^ qsz_exponent);
+			% ServiceRate(t - lags(server), num_servers)
+			ewma_service_rate(client, server) = (1 - alpha) * ewma_service_rate(client, server) + alpha * ServiceRate(t - lags(server), num_servers)(server);
+			qmu_inverse(server) = ewma_service_rate(client, server)/((1 + os_n + ewma_q(client, server)) ^ qsz_exponent);
 		endfor
 		TotalWeight = sum(qmu_inverse);
 		% qmu_inverse
@@ -140,16 +156,9 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initServerQ = 0;
-initClientQ = 0;
-num_clients = 10;
-num_servers = 3;
-qsz_exponent = 3;
-os = 0;
-
 init = vertcat(repmat([initServerQ], num_servers, 1), 
 			   repmat([initClientQ], num_clients, 1));
-lags = repmat([0.1], 1, num_servers);
+lags = repmat([0.05], 1, num_servers);
 % lags = horzcat(lags, 10.0);
 
 hist_mat = vertcat(repmat(initServerQ, num_servers, length(lags)),
