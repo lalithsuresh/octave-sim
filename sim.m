@@ -2,7 +2,7 @@ clear;
 pkg load odepkg;
 
 Tstart = 1;
-Tend = 50;
+Tend = 30;
 NumT = Tend;
 % T = linspace(Tstart, Tend, NumT * 5);
 T = [Tstart,Tend];
@@ -12,9 +12,7 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
 
-	if(t > 11)
-		sending_rate(1) = 56/5;
-	endif
+	% sending_rate = ServiceRate(t - 5, num_servers)/num_clients;
 	for client = 1:num_clients
 
 		% 
@@ -24,14 +22,16 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 		qmu_inverse = zeros(num_servers, 1);
 		for server = 1:num_servers
 			measured_q = max(xd(server, server), 0);
+			measured_q, server, t
 			% 1/rate == mu
 			% need a way to import time lag
 			os_n = os * num_clients;
+			ServiceRate(t - lags(server), num_servers)
 			service_rate = ServiceRate(t - lags(server), num_servers)(server);
 			qmu_inverse(server) = service_rate/((1 + os_n + measured_q) ^ qsz_exponent);
 		endfor
 		TotalWeight = sum(qmu_inverse);
-
+		% qmu_inverse
 		% 
 		% Demand allocation begins.
 		% 
@@ -40,9 +40,7 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 		
 		% When in backpressure mode, fire away at full possible
 		% sending rate.
-		% XXX: this check has potential for numerical errors.
-		% ... fix later.
-		if (x(num_servers + client) > 0)
+		if (x(num_servers + client) > 0.1)
 			total_to_allocate = sum(sending_rate);
 		endif
 
@@ -61,6 +59,7 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 			for server = 1:num_servers
 				if (is_full(server) == 0)
 					flow_fraction = qmu_inverse(server)/(WeightToUse);
+					% "HERE", WeightToUse, flow_matrix, qmu_inverse, flow_fraction 
 					flow_matrix(client, server) = flow_matrix(client, server) + total_to_allocate * flow_fraction;
 
 					if(flow_matrix(client, server) > sending_rate(server))
@@ -78,12 +77,12 @@ function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, s
 				total_to_allocate = backlogRate;
 			else
 				break
-			endif
+		  	endif
 		endfor
-
-		if(backlogRate > 0)
-			t, backlogRate, flow_matrix
-		endif
+		% flow_matrix
+		% if(backlogRate > 0)
+		% 	t, backlogRate, flow_matrix
+		% endif
 
 		% Update backlog size at client
 		total_drain = sum(flow_matrix(client, :));
@@ -124,14 +123,14 @@ endfunction
 % xxx: use sinusoid
 function ServiceRate = ServiceRate(t, num_servers)
 	
-	ServiceRate = repmat(50, 1, num_servers);
+	ServiceRate = repmat(100, 1, num_servers);
 
 	if(t > 11)
-		ServiceRate = [56;50;50];
-		% ServiceRate = [30;70;50];
+		% ServiceRate = [56;50;50];
+		ServiceRate = [60;140;100];
 	elseif(t > 10)
 		% ServiceRate = [30;70;50];
-		ServiceRate = [50;50;50];
+		ServiceRate = [100;100;100];
 	endif
 
 	% st = 50;
@@ -141,28 +140,30 @@ function ServiceRate = ServiceRate(t, num_servers)
 	% 			   sin(t/10 + 3* pi/4) * amplitude + st];
 endfunction
 
-initServerQ = 10;
+initServerQ = 0;
 initClientQ = 0;
-num_clients = 5;
+num_clients = 10;
 num_servers = 3;
 qsz_exponent = 3;
 os = 0;
 
 init = vertcat(repmat([initServerQ], num_servers, 1), 
 			   repmat([initClientQ], num_clients, 1));
-lags = repmat([0.5], 1, num_servers);
-hist_mat = vertcat(repmat(initServerQ, num_servers, num_servers),
-				   repmat(initClientQ, num_clients, num_servers));
-sending_rates = repmat([10], 1, num_servers);
+lags = repmat([0.1], 1, num_servers);
+% lags = horzcat(lags, 10.0);
+
+hist_mat = vertcat(repmat(initServerQ, num_servers, length(lags)),
+				   repmat(initClientQ, num_clients, length(lags)));
+sending_rates = repmat([100], 1, num_servers);
 
 options = odeset ('InitialStep', 0.1, 'MaxStep', 0.1, 'RelTol', 1.0e-6, 'AbsTol', 1.0e-6); 
-res = ode23d(@q, T, init, lags, hist_mat, options,
+res = ode45d(@q, T, init, lags, hist_mat, options,
 			 num_clients, num_servers, lags, qsz_exponent, os, sending_rates);
 
 % XXX: Add legend
 subplot (2, 1, 1);
 plot(res.x, res.y(:, 1:num_servers), 'LineWidth', 2);
-axis ([Tstart Tend 0 150]);
+% axis ([Tstart Tend 0 150]);
 subplot (2, 1, 2);
 plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
 axis ([Tstart Tend 0 5]);
