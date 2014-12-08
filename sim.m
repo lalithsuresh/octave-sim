@@ -2,32 +2,30 @@ clear;
 pkg load odepkg;
 
 Tstart = 1;
-Tend = 30;
+Tend = 15;
 NumT = Tend;
 % T = linspace(Tstart, Tend, NumT * 5);
 T = [Tstart,Tend];
 
-initServerQ = 10;
+initServerQ = 0;
 initClientQ = 0;
 num_clients = 10;
 num_servers = 3;
 qsz_exponent = 3;
-os = 5;
+os = 1;
 
-global alpha = 0.8;
 global ewma_q = zeros(num_clients, num_servers);
 global ewma_service_rate = zeros(num_clients, num_servers);
 
 function qdot = q(t, x, xd,  num_clients, num_servers, lags, qsz_exponent, os, sending_rate)
 	global ewma_q;
 	global ewma_service_rate;
-	global alpha;
-	ewma_q, ewma_service_rate
+	alpha = 0.8;
 	qdot = zeros(num_servers + num_clients, 1);
 	arrival_rate = ArrivalRate(t, num_clients);
 	flow_matrix = zeros(num_clients, num_servers);
 
-	% sending_rate = ServiceRate(t - 5, num_servers)/num_clients;
+	% sending_rate = ServiceRate(t - 1, num_servers)/num_clients;
 	for client = 1:num_clients
 
 		% 
@@ -158,12 +156,12 @@ endfunction
 
 init = vertcat(repmat([initServerQ], num_servers, 1), 
 			   repmat([initClientQ], num_clients, 1));
-lags = repmat([0.05], 1, num_servers);
+lags = repmat([0.01], 1, num_servers);
 % lags = horzcat(lags, 10.0);
 
 hist_mat = vertcat(repmat(initServerQ, num_servers, length(lags)),
 				   repmat(initClientQ, num_clients, length(lags)));
-sending_rates = repmat([100], 1, num_servers);
+sending_rates = repmat([200], 1, num_servers);
 
 options = odeset ('InitialStep', 0.1, 'MaxStep', 0.1, 'RelTol', 1.0e-6, 'AbsTol', 1.0e-6); 
 res = ode45d(@q, T, init, lags, hist_mat, options,
@@ -172,7 +170,7 @@ res = ode45d(@q, T, init, lags, hist_mat, options,
 % XXX: Add legend
 subplot (2, 1, 1);
 plot(res.x, res.y(:, 1:num_servers), 'LineWidth', 2);
-% axis ([Tstart Tend 0 150]);
+% axis ([Tstart Tend 38 42]);
 subplot (2, 1, 2);
 plot(res.x,  res.y(:, num_servers + 1 :num_servers + num_clients), 'LineWidth', 2);
 axis ([Tstart Tend 0 5]);
